@@ -4,7 +4,7 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include "Secrets.h" //File with your creditionals for connection 
-// it should contain the following - 
+// it should contain the following -
 // const char *ssid = "your-ssid";
 // const char *password = "your-password";
 
@@ -26,22 +26,24 @@ void setup ( void ) {
   Serial.println();
   strip.setBrightness(brightness);
   strip.begin();
-  strip.show(); 
+  strip.show();
   delay(50);
   Serial.println("NeoPixel started");
-  
+
   // #########
   // Webserver
   pinMode ( led, OUTPUT );
   digitalWrite ( led, 0 );
-  
-  WiFi.begin ( ssid, password );
-  Serial.println ( "" );
 
+  WiFi.begin ( ssid, password );
+  Serial.print ("ssid ");
+  Serial.println (ssid);
+  Serial.print ("password ");
+  Serial.println (password);
   // Wait for connection
   while ( WiFi.status() != WL_CONNECTED ) {
-    delay ( 500 );
-    Serial.print ( "." );
+    delay ( 5 );
+    //Serial.print ( "." );
   }
 
   Serial.println ( "" );
@@ -59,8 +61,8 @@ void setup ( void ) {
   server.onNotFound ( handleNotFound );
   server.begin();
 
-  
-  
+
+
   Serial.println ( "HTTP server started" );
 }
 
@@ -73,20 +75,21 @@ void loop ( void ) {
 void handleRoot() {
   Serial.println("Client connected");
   digitalWrite ( led, 1 );
-  if (server.hasArg("plain")== false){ //Check if body received
-            // data from the colorpicker 
-            String color = server.arg("c");
-            Serial.println("Color: " + color);
-            // building a website
-            char temp[5000];
-              int sec = millis() / 1000;
-              int min = sec / 60;
-              int hr = min / 60;
-              char clr [7];
-              color.toCharArray(clr, 7);
-             snprintf ( temp, 5000,
-            
-            "<!DOCTYPE html>\n<html>\n\
+  if (server.hasArg("plain") == false) { //Check if body received
+    // data from the colorpicker
+    String color = server.arg("c");
+    Serial.println("Color: " + color);
+    Serial.println("Brightness current: " + brightness);
+    // building a website
+    char temp[5000];
+    int sec = millis() / 1000;
+    int min = sec / 60;
+    int hr = min / 60;
+    char clr [7];
+    color.toCharArray(clr, 7);
+    snprintf ( temp, 5000,
+               //<input type="range" min="0" max="100" step="1" value="50">
+               "<!DOCTYPE html>\n<html>\n\
               <head>\n\
                 <title>Esp8266 NeoPixel Controler</title>\n\
                 <style>\
@@ -105,63 +108,63 @@ void handleRoot() {
                 \n\
               </body>\
             </html>",
-            
-                hr, min % 60, sec % 60, clr
-              );
-              server.send ( 200, "text/html", temp );
-              digitalWrite ( led, 0 );
-                        // setting the color to the strip 
-                        setNeoColor(color);
-                        //server.send(200, "text/plain", "Body not received");
-                        return;
- 
-      }
- 
-      String message = server.arg("plain");
-      //server.send(200, "text/plain", message);
-      Serial.println("message is : " + message);
-      String buff = message;    
-   if (message == "green" or message == "Green") {
-           String color = "#00ff00";
-      setNeoColor(color);
+
+               hr, min % 60, sec % 60, clr
+             );
+    server.send ( 200, "text/html", temp );
+    digitalWrite ( led, 0 );
+    // setting the color to the strip
+    setNeoColor(color);
+    //server.send(200, "text/plain", "Body not received");
+    return;
+
+  }
+
+  String message = server.arg("plain");
+  //server.send(200, "text/plain", message);
+  Serial.println("message is : " + message);
+  String buff = message;
+  if (message == "green" or message == "Green") {
+    String color = "#00ff00";
+    setNeoColor(color);
   }
   if (message.equalsIgnoreCase("red")) {
-       String color = "#ff0000";
-      setNeoColor(color);
+    String color = "#ff0000";
+    setNeoColor(color);
   }
   if (message == "blue" or message == "Blue") {
-      String color = "#3333ff";
-      setNeoColor(color);
+    String color = "#3333ff";
+    setNeoColor(color);
   }
   if (message == "white" or message == "White") {
-       String color = "#ffffff";
-      setNeoColor(color);
+    String color = "#ffffff";
+    setNeoColor(color);
   }
   if (message == "off" or message == "Off") {
-       String color = "#000000";
-      setNeoColor(color);
+    String color = "#000000";
+    setNeoColor(color);
   }
   if (message.lastIndexOf("s") == 9 ) {
-        
-        String buffe = "";
-        for (int i=9; i <= 13; i++){
 
-          if(buff[i]>='0'&&buff[i]<='9') // capturing numbers
-              buffe += buff[i];
-        }
-        brightness = buffe.toInt();
-        Serial.println(brightness);
-        //for(int i=0; i < NUM_LEDS; i++) {
-        //strip.setPixelColor(i, strip.Color( 0, 0, 255 ) );
-        //}
-       strip.setBrightness(brightness);
-       strip.show();
+    String buffe = "";
+    for (int i = 9; i <= 13; i++) {
+
+      if (buff[i] >= '0' && buff[i] <= '9') // capturing numbers
+        buffe += buff[i];
+    }
+    brightness = buffe.toInt();
+    Serial.println(brightness);
+    //for(int i=0; i < NUM_LEDS; i++) {
+    //strip.setPixelColor(i, strip.Color( 0, 0, 255 ) );
+    //}
+    strip.setBrightness(brightness);
+    strip.show();
   }
 
-  
+
   //String color = server.arg("c");
-            
-  
+
+
 }
 
 void handleNotFound() {
@@ -185,16 +188,16 @@ void handleNotFound() {
 
 
 
-void setNeoColor(String value){
+void setNeoColor(String value) {
   Serial.print("Setting Neopixel...");
   // converting Hex to Int
   int number = (int) strtol( &value[1], NULL, 16);
-  
+
   // splitting into three parts
   int r = number >> 16;
   int g = number >> 8 & 0xFF;
   int b = number & 0xFF;
-  
+
   // DEBUG
   Serial.print("RGB: ");
   Serial.print(r, DEC);
@@ -203,14 +206,14 @@ void setNeoColor(String value){
   Serial.print(" ");
   Serial.print(b, DEC);
   Serial.println(" ");
-  
+
   // setting whole strip to the given color
-  for(int i=0; i < NUM_LEDS; i++) {
+  for (int i = 0; i < NUM_LEDS; i++) {
     strip.setPixelColor(i, strip.Color( g, r, b ) );
   }
   // init
   strip.show();
- 
-  
+
+
   Serial.println("on.");
 }
