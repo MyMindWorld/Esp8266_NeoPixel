@@ -11,10 +11,10 @@
 
 ESP8266WebServer server ( 80 );
 
-#define NeoPIN D5
+#define NeoPIN 14
 //#define NUM_LEDS 8
 
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(300, NeoPIN, NEO_RGB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(300, NeoPIN, NEO_GRB + NEO_KHZ400);
 int brightness = 189;
 int point1 = 0;
 int point2 = strip.numPixels();
@@ -218,11 +218,15 @@ void handleRoot() {
       setNeoColor(color,point1,point2);
     }
     if (message.equalsIgnoreCase("magenta")) {
-      color = "#1eceff"; 
+      color = "#ff1ef7"; 
+      setNeoColor(color,point1,point2);
+    }
+    if (message.equalsIgnoreCase("magento")) {
+      color = "#ff1ef7"; 
       setNeoColor(color,point1,point2);
     }
     if (message.equalsIgnoreCase("lounge")) {
-      color = "#ff1ef7"; 
+      color = "#1eceff"; 
       setNeoColor(color,point1,point2);
     }
     if (message.equalsIgnoreCase("orange")) {
