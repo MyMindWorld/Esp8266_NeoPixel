@@ -1,9 +1,26 @@
+//BIG MERGE
 #include <Adafruit_NeoPixel.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <time.h>
+
+#include <Arduino.h>
+#include <WiFiUdp.h>
+#define FASTLED_ESP8266_DMA // better control for ESP8266 will output or RX pin requires fork https://github.com/coryking/FastLED
+#define FASTLED_ALLOW_INTERRUPTS 0  // Reduce flickering
+#include "FastLED.h"
+const char* sensor_name = "TEST_SENSOR_HOSTNAME";
+const int udp_port = 7778;
+#define NUM_LEDS      300
+#define DATA_PIN      05
+//#define CLOCK_PIN     2
+#define CHIPSET       WS2811
+#define COLOR_ORDER   GRB
+WiFiUDP port;
+CRGB leds[NUM_LEDS];
+
 #include "Secrets.h" //File with your creditionals for connection 
 // it should contain the following -
 // const char *ssid = "your-ssid";
@@ -23,6 +40,7 @@ String color = "#ffffff";
 int timezone = 3;
 int dst = 0;
 
+int wake = 0;
 
 void setup ( void ) {
 
@@ -39,8 +57,6 @@ void setup ( void ) {
 
   // #########
   // Webserver
-
-
   WiFi.begin ( ssid, password );
   Serial.print ("ssid ");
   Serial.println (ssid);
@@ -51,33 +67,40 @@ void setup ( void ) {
     delay ( 5 );
     //Serial.print ( "." );
   }
-
-  Serial.println ( "" );
   Serial.print ( "Connected to " );
   Serial.println ( ssid );
   Serial.print ( "IP address: " );
   Serial.println ( WiFi.localIP() );
-
   if ( MDNS.begin ( "esp8266" ) ) {
     Serial.println ( "MDNS responder started" );
   }
-
   // what to do with requests
   server.on ( "/", handleRoot );
   server.onNotFound ( handleNotFound );
   server.begin();
   Serial.println ( "HTTP server started" );
-  
-configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
-  Serial.println("\nWaiting for time");
+  configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  Serial.println("Waiting for time");
   while (!time(nullptr)) {
     Serial.print(".");
     delay(1000);
   }
-  Serial.println("time get");
+  Serial.println("Time get");
+
   
-  setNeoColor(color,point1,point2);
-  Serial.println ( "White set" );
+
+#ifdef CLOCK_PIN
+  FastLED.addLeds<CHIPSET, DATA_PIN, CLOCK_PIN, COLOR_ORDER>(leds, NUM_LEDS);
+#else
+  FastLED.addLeds<CHIPSET, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS);
+#endif
+
+  // Initialize the UDP port
+  port.begin(udp_port);
+  Serial.println ( "Colormusic done" );
+  
+  setNeoColor(color, point1, point2);
+  Serial.println ( "All white" );
 }
 
 void loop ( void ) {
@@ -86,43 +109,50 @@ void loop ( void ) {
   time_t now;
   struct tm * timeinfo;
   time(&now);
-  timeinfo = localtime(&now);  
-  //Serial.print(timeinfo->tm_hour);
-  //Serial.print(" ");
-  //Serial.println(timeinfo->tm_min);
-  //delay(10000);
-  //int x = timeinfo->tm_hour;
-if (timeinfo->tm_hour==8 && timeinfo->tm_min>=30){
-  int brightness = 255;
-  int point1 = 0;
-  int point2 = strip.numPixels();
-  while (timeinfo->tm_min<45){
-    time_t now;
-    struct tm * timeinfo;
-    time(&now);
-    timeinfo = localtime(&now);  
-    Serial.println(timeinfo->tm_min);
-    color = "#1eceff"; 
-    setNeoColor(color,point1,point2);
-    delay(1000);
-    color = "#ffffff"; 
-    setNeoColor(color,point1,point2);
-    delay(1000);
-}
-}
-//  time_t now = time(nullptr);
-//  Serial.print(ctime(&now));
-//  delay(1000);
+  timeinfo = localtime(&now);
+  if (timeinfo->tm_hour == 8 && timeinfo->tm_min >= 45 && timeinfo->tm_min <= 59 ) {
+    wake = 0;
+    int sun_speed = 1000;
+    sunrise(sun_speed);
+    int brightness = 255;
+    int point1 = 0;
+    int point2 = strip.numPixels();
+    while (digitalRead(D1) == LOW) {
+      time_t now;
+      struct tm * timeinfo;
+      time(&now);
+      timeinfo = localtime(&now);
+      Serial.println(timeinfo->tm_min);
+      color = "#1eceff";
+      setNeoColor(color, point1, point2);
+      delay(1000);
+      color = "#ffffff";
+      setNeoColor(color, point1, point2);
+      delay(1000);
+    }
+  }
+  int packetSize = port.parsePacket();
+  if (packetSize == sizeof(leds)) {
+    port.read((char*)leds, sizeof(leds));
+    //Serial.printf(".");
+    FastLED.show();
+    // flush the serial buffer
+    while (Serial.available()) {
+      Serial.read();
+    }
+  } else if (packetSize) {
+    Serial.printf("Invalid packet size: %u (expected %u)\n", packetSize, sizeof(leds));
+    port.flush();
+    return;
+  }
 
 }
 
 void handleRoot() {
-  Serial.println("Client connected");
+  Serial.print("Client connected. ");
   String getip = server.client().remoteIP().toString();
   Serial.print("IP :");
   Serial.println(getip);
-  Serial.print("Brightness current: ");
-  Serial.println(brightness);
   if (server.hasArg("plain") == false) { //Check if body received
     // data from the colorpicker
     // building a website
@@ -130,7 +160,7 @@ void handleRoot() {
     int sec = millis() / 1000;
     int min = sec / 60;
     int hr = min / 60;
-    
+
     snprintf ( temp, 5000,
                //<input type="range" min="0" max="100" step="1" value="50">
                "<!DOCTYPE html>\n<html>\n\
@@ -159,13 +189,13 @@ void handleRoot() {
 
     // setting the color to the strip
     if (server.hasArg("c") )
-    {color = server.arg("c");
-    Serial.println("Color: " + color);
-    char clr [7];
-    color.toCharArray(clr, 7);
-    setNeoColor(color,point1,point2);
+    { color = server.arg("c");
+      Serial.println("Color: " + color);
+      char clr [7];
+      color.toCharArray(clr, 7);
+      setNeoColor(color, point1, point2);
     }
-    
+
     //server.send(200, "text/plain", "Body not received");
     return;
 
@@ -180,80 +210,114 @@ void handleRoot() {
     if (message.equalsIgnoreCase("only bed")) {
       point1 = 144; //left part of stipe on that comand
       point2 = 175; // right part
-      setNeoColor(color,point1,point2);
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("all")) {
       point1 = 0;
       point2 = strip.numPixels();
-      setNeoColor(color,point1,point2);
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("pc")) {
       point1 = 250;
       point2 = 278;
-      setNeoColor(color,point1,point2);
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("exp")) {
       point1 = 253;
       point2 = 278;
-      setNeoColor(color,point1,point2);
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("green")) {
       color = "#00ff00";
-      setNeoColor(color,point1,point2);
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("red")) {
       color = "#ff0000";
-      setNeoColor(color,point1,point2);
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("blue")) {
       color = "#0000ff";
-      setNeoColor(color,point1,point2);
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("white")) {
       color = "#ffffff";
-      setNeoColor(color,point1,point2);
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("yellow")) {
-      color = "#dfe839"; 
-      setNeoColor(color,point1,point2);
+      color = "#dfe839";
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("magenta")) {
-      color = "#ff1ef7"; 
-      setNeoColor(color,point1,point2);
+      color = "#ff1ef7";
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("magento")) {
-      color = "#ff1ef7"; 
-      setNeoColor(color,point1,point2);
+      color = "#ff1ef7";
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("lounge")) {
-      color = "#1eceff"; 
-      setNeoColor(color,point1,point2);
+      color = "#1eceff";
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("orange")) {
-      color = "#f97f1b"; 
-      setNeoColor(color,point1,point2);
+      color = "#f97f1b";
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("rainbow")) {
       Serial.println("Rainbow begins)");
       rainbow(10);
-      setNeoColor(color,point1,point2);
+      setNeoColor(color, point1, point2);
+    }
+    if (message.equalsIgnoreCase("random")) {
+      int r = random(0, 255);
+      delay(1);
+      int g = random(0, 255);
+      delay(1);
+      int b = random(0, 255);
+      delay(1);
+      Serial.println(r);
+      Serial.println(g);
+      Serial.println(b);
+      // setting cut from 0 to 1 point to black
+      for (int i = 0; i < point1; i++) {
+        strip.setPixelColor(i, strip.Color( 0, 0, 0 ) );
+      }
+      // setting cut from 1 point to 2 point to given color
+      for (int i = point1; i < point2; i++) {
+        strip.setPixelColor(i, strip.Color( r, g, b ) );
+      }
+      // setting cut from 2 point to end to black
+      for (int i = point2; i < strip.numPixels(); i++) {
+        strip.setPixelColor(i, strip.Color( 0, 0, 0 ) );
+      }
+      strip.show();
+    }
+    if (message.equalsIgnoreCase("sunrise")) {
+      Serial.println("Sunrise began");
+      int sun_speed = 100;
+      sunrise(sun_speed);
+    }
+    if (message.equalsIgnoreCase("on")) {
+      color = "#ffffff";
+      point1 = 0;
+      point2 = strip.numPixels();
+      setNeoColor(color, point1, point2);
     }
     if (message.equalsIgnoreCase("off")) {
       color = "#000000";
-      setNeoColor(color,point1,point2);
+      setNeoColor(color, point1, point2);
     }
-    
-    
-    
-    if (message.lastIndexOf("s") == 9 ) {
 
+    if (message.lastIndexOf("s") == 9 ) {
+       Serial.print("Brightness current:");
+       Serial.println(brightness);
       String buffe = "";
       for (int i = 9; i <= 13; i++) {
 
         if (buff[i] >= '0' && buff[i] <= '9') // capturing numbers
           buffe += buff[i];
       }
-       brightness = buffe.toInt();
+      brightness = buffe.toInt();
       //for(int i=0; i < NUM_LEDS; i++) {
       //strip.setPixelColor(i, strip.Color( 0, 0, 255 ) );
       //}
@@ -264,26 +328,34 @@ void handleRoot() {
       }
       if (buffe == 0) {
         color = "#000000";
-        setNeoColor(color,point1,point2);
+        setNeoColor(color, point1, point2);
       }
     }
-    Serial.println("Strip Show");
     strip.show();
 
+ 
+  if (message.lastIndexOf("t") == 3 ) {
+
+    String buffe = "";
+    for (int i = 4; i <= 8; i++) {
+
+      if (buff[i] >= '0' && buff[i] <= '9') // capturing numbers
+        buffe += buff[i];
+    }
+    int num = buffe.toInt();
+    test(num);
+
+    //color = server.arg("c");
+  }
+  }
+  else {
+    Serial.print("not valid message : ");
+    Serial.println(message);
+    Serial.print("ind of $ : ");
+    Serial.println(message.lastIndexOf("$"));
   }
 
-
-  //color = server.arg("c");
-
-
-else {
-  Serial.print("not valid message : ");
-  Serial.println(message);
-  Serial.print("ind of $ : ");
-  Serial.println(message.lastIndexOf("$"));
 }
-}
-
 void handleNotFound() {
 
   String message = "File Not Found\n\n";
@@ -306,7 +378,7 @@ void handleNotFound() {
 
 
 void setNeoColor(String value, int point1, int point2) {
-  
+
   Serial.print("Setting ceiling...");
   // converting Hex to Int
   int number = (int) strtol( &value[1], NULL, 16);
@@ -316,7 +388,7 @@ void setNeoColor(String value, int point1, int point2) {
   int g = number >> 8 & 0xFF;
   int b = number & 0xFF;
 
-//    start-point1;point1-point2;end
+  //    start-point1;point1-point2;end
   // setting cut from 0 to 1 point to black
   for (int i = 0; i < point1; i++) {
     strip.setPixelColor(i, strip.Color( 0, 0, 0 ) );
@@ -337,26 +409,86 @@ void setNeoColor(String value, int point1, int point2) {
 }
 void rainbow(uint8_t wait) {
   uint16_t i, j;
-  for(j=0; j<256; j++) {
-    for(i=point1; i<point2; i++) {
-      strip.setPixelColor(i, Wheel((i+j) & 255));
+  for (j = 0; j < 256; j++) {
+    for (i = point1; i < point2; i++) {
+      strip.setPixelColor(i, Wheel((i + j) & 255));
     }
     strip.show();
     delay(wait);
   }
-  
+
 }
+void test(int num) {
+  Serial.print("testing ");
+  Serial.println(num);
 
-
+  strip.setPixelColor(num, strip.Color( 255, 0, 0 ));
+  strip.show();
+  delay(1000);
+  strip.setPixelColor(num, strip.Color( 255, 255, 255 ));
+  strip.show();
+}
+void sunrise(int sun_speed) {
+  for (int i = 0; i < 60; i++) { // to point 1
+    int col = i;
+    int pos = i;
+    strip.setPixelColor(pos, strip.Color( col, 0, 0 ) );
+    strip.show();
+    pos = (300-pos);
+    strip.setPixelColor(pos, strip.Color( col, 0, 0 ) );
+    strip.show();
+    delay(sun_speed);
+  }
+  for (int i = 0; i < 33; i++) { // to point 2
+    int col = i*3;
+    int pos = i;
+    strip.setPixelColor(pos, strip.Color( col, col, 0 ) );
+    strip.show();
+    pos = (300-pos);
+    strip.setPixelColor(pos, strip.Color( col, col, 0 ) );
+    strip.show();
+    delay(sun_speed);
+  }
+  for (int i = 0; i < 60; i++) { // to point 2.5
+    int col = 255;
+    int pos = i;
+    strip.setPixelColor(pos, strip.Color( col, col, 0 ) );
+    strip.show();
+    pos = (300-pos);
+    strip.setPixelColor(pos, strip.Color( col, col, 0 ) );
+    strip.show();
+    delay(sun_speed);
+  }
+  for (int i = 0; i < 80; i++) { // to point 3
+    int col = i*3;
+    int pos = i;
+    strip.setPixelColor(pos, strip.Color( 255, 255, col ) );
+    strip.show();
+    pos = (300-pos);
+    strip.setPixelColor(pos, strip.Color( 255, 255, col ) );
+    strip.show();
+    delay(sun_speed);
+  }
+  for (int i = 0; i < 150; i++) { // to finish
+    int pos = i;
+    strip.setPixelColor(pos, strip.Color( 255, 255, 255 ) );
+    strip.show();
+    pos = (300-pos);
+    strip.setPixelColor(pos, strip.Color( 255, 255, 255 ) );
+    strip.show();
+    delay(sun_speed);
+  }
+   
+}
 uint32_t Wheel(byte WheelPos) {
   WheelPos = 255 - WheelPos;
-  if(WheelPos < 85) {
-   return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
-  } else if(WheelPos < 170) {
+  if (WheelPos < 85) {
+    return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  } else if (WheelPos < 170) {
     WheelPos -= 85;
-   return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+    return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
   } else {
-   WheelPos -= 170;
-   return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+    WheelPos -= 170;
+    return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
   }
 }
