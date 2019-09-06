@@ -1,30 +1,26 @@
+ //BIG MERGE
+#include <Adafruit_NeoPixel.h>
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
 #include <time.h>
 #include <ArduinoOTA.h>
 #include <Arduino.h>
-=======
->>>>>>> 3b6360d7e6b72bbd7ee445d5142c5381b687f2ff
 #include <WiFiUdp.h>
-
-#include "FastLED.h"
-
-
 #define FASTLED_ESP8266_DMA // better control for ESP8266 will output or RX pin requires fork https://github.com/coryking/FastLED
 #define FASTLED_ALLOW_INTERRUPTS 0  // Reduce flickering
-
+#include "FastLED.h"
+const char* sensor_name = "TEST_SENSOR_HOSTNAME";
+const int udp_port = 7778;
 #define NUM_LEDS      300
-<<<<<<< HEAD
 #define DATA_PIN      04
-=======
-#define NeoPIN 14
-#define DATA_PIN      05
->>>>>>> 3b6360d7e6b72bbd7ee445d5142c5381b687f2ff
 //#define CLOCK_PIN     2
 #define CHIPSET       WS2811
 #define COLOR_ORDER   GRB
 WiFiUDP port;
 CRGB leds[NUM_LEDS];
 
-<<<<<<< HEAD
 #include "Secrets.h" //File with your creditionals for connection 
 // it should contain the following -
 // const char *ssid = "your-ssid";
@@ -34,11 +30,8 @@ ESP8266WebServer server ( 80 );
 
 #define NeoPIN 04
 //#define NUM_LEDS 8
-=======
-const char* sensor_name = "TEST_SENSOR_HOSTNAME";
-const int udp_port = 7778;
->>>>>>> 3b6360d7e6b72bbd7ee445d5142c5381b687f2ff
 
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(300, NeoPIN, NEO_GRB + NEO_KHZ400);
 int brightness = 189;
 int point1 = 0;
 int point2 = strip.numPixels();
@@ -47,17 +40,8 @@ String color = "#ffffff";
 
 int timezone = 3;
 int dst = 0;
+
 int wake = 0;
-
-
-#include "Secrets.h" //File with your creditionals for connection 
-// it should contain the following -
-// const char *ssid = "your-ssid";
-// const char *password = "your-password";
-
-ESP8266WebServer server ( 80 );
-
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_LEDS, NeoPIN, NEO_GRB + NEO_KHZ400);
 
 void setup ( void ) {
 
@@ -103,13 +87,8 @@ void setup ( void ) {
     delay(1000);
   }
   Serial.println("Time get");
-<<<<<<< HEAD
   wake = 1;
   
-=======
-
-
->>>>>>> 3b6360d7e6b72bbd7ee445d5142c5381b687f2ff
 
 #ifdef CLOCK_PIN
   FastLED.addLeds<CHIPSET, DATA_PIN, CLOCK_PIN, COLOR_ORDER>(leds, NUM_LEDS);
@@ -120,7 +99,7 @@ void setup ( void ) {
   // Initialize the UDP port
   port.begin(udp_port);
   Serial.println ( "Colormusic done" );
-
+  
   setNeoColor(color, point1, point2);
   Serial.println ( "All white" );
 
@@ -158,7 +137,6 @@ void setup ( void ) {
 void loop ( void ) {
   // waiting for a client
   server.handleClient();
-<<<<<<< HEAD
   // waiting for OTA
   ArduinoOTA.handle();
   //Checking alarm clock
@@ -186,9 +164,6 @@ void handlecolormusic() {
 }
 
 void handletime() {
-=======
-  
->>>>>>> 3b6360d7e6b72bbd7ee445d5142c5381b687f2ff
   time_t now;
   struct tm * timeinfo;
   time(&now);
@@ -220,26 +195,6 @@ void handletime() {
       delay(1000);
     }
   }
-<<<<<<< HEAD
-=======
-  
-  int packetSize = port.parsePacket();
-  if (packetSize == sizeof(leds)) {
-    port.read((char*)leds, sizeof(leds));
-    //Serial.printf(".");
-    FastLED.show();
-    // flush the serial buffer
-    while (Serial.available()) {
-      Serial.read();
-    }
-  } 
-  else if (packetSize) {
-    Serial.printf("Invalid packet size: %u (expected %u)\n", packetSize, sizeof(leds));
-    port.flush();
-    return;
-  }
-
->>>>>>> 3b6360d7e6b72bbd7ee445d5142c5381b687f2ff
 }
 
 void handleRoot() {
@@ -403,8 +358,8 @@ void handleRoot() {
     }
 
     if (message.lastIndexOf("s") == 9 ) {
-      Serial.print("Brightness current:");
-      Serial.println(brightness);
+       Serial.print("Brightness current:");
+       Serial.println(brightness);
       String buffe = "";
       for (int i = 9; i <= 13; i++) {
 
@@ -427,20 +382,20 @@ void handleRoot() {
     }
     strip.show();
 
+ 
+  if (message.lastIndexOf("t") == 3 ) {
 
-    if (message.lastIndexOf("t") == 3 ) {
+    String buffe = "";
+    for (int i = 4; i <= 8; i++) {
 
-      String buffe = "";
-      for (int i = 4; i <= 8; i++) {
-
-        if (buff[i] >= '0' && buff[i] <= '9') // capturing numbers
-          buffe += buff[i];
-      }
-      int num = buffe.toInt();
-      test(num);
-
-      //color = server.arg("c");
+      if (buff[i] >= '0' && buff[i] <= '9') // capturing numbers
+        buffe += buff[i];
     }
+    int num = buffe.toInt();
+    test(num);
+
+    //color = server.arg("c");
+  }
   }
   else {
     Serial.print("not valid message : ");
@@ -529,17 +484,17 @@ void sunrise(int sun_speed) {
     int pos = i;
     strip.setPixelColor(pos, strip.Color( col, 0, 0 ) );
     strip.show();
-    pos = (300 - pos);
+    pos = (300-pos);
     strip.setPixelColor(pos, strip.Color( col, 0, 0 ) );
     strip.show();
     delay(sun_speed);
   }
   for (int i = 0; i < 33; i++) { // to point 2
-    int col = i * 3;
+    int col = i*3;
     int pos = i;
     strip.setPixelColor(pos, strip.Color( col, col, 0 ) );
     strip.show();
-    pos = (300 - pos);
+    pos = (300-pos);
     strip.setPixelColor(pos, strip.Color( col, col, 0 ) );
     strip.show();
     delay(sun_speed);
@@ -549,17 +504,17 @@ void sunrise(int sun_speed) {
     int pos = i;
     strip.setPixelColor(pos, strip.Color( col, col, 0 ) );
     strip.show();
-    pos = (300 - pos);
+    pos = (300-pos);
     strip.setPixelColor(pos, strip.Color( col, col, 0 ) );
     strip.show();
     delay(sun_speed);
   }
   for (int i = 0; i < 80; i++) { // to point 3
-    int col = i * 3;
+    int col = i*3;
     int pos = i;
     strip.setPixelColor(pos, strip.Color( 255, 255, col ) );
     strip.show();
-    pos = (300 - pos);
+    pos = (300-pos);
     strip.setPixelColor(pos, strip.Color( 255, 255, col ) );
     strip.show();
     delay(sun_speed);
@@ -568,12 +523,12 @@ void sunrise(int sun_speed) {
     int pos = i;
     strip.setPixelColor(pos, strip.Color( 255, 255, 255 ) );
     strip.show();
-    pos = (300 - pos);
+    pos = (300-pos);
     strip.setPixelColor(pos, strip.Color( 255, 255, 255 ) );
     strip.show();
     delay(sun_speed);
   }
-
+   
 }
 
 uint32_t Wheel(byte WheelPos) {
