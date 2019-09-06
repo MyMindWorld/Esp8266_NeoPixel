@@ -1,11 +1,11 @@
- //BIG MERGE
+//BIG MERGE
 #include <Adafruit_NeoPixel.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <time.h>
-#include <ArduinoOTA.h>
+
 #include <Arduino.h>
 #include <WiFiUdp.h>
 #define FASTLED_ESP8266_DMA // better control for ESP8266 will output or RX pin requires fork https://github.com/coryking/FastLED
@@ -14,7 +14,7 @@
 const char* sensor_name = "TEST_SENSOR_HOSTNAME";
 const int udp_port = 7778;
 #define NUM_LEDS      300
-#define DATA_PIN      04
+#define DATA_PIN      05
 //#define CLOCK_PIN     2
 #define CHIPSET       WS2811
 #define COLOR_ORDER   GRB
@@ -28,7 +28,7 @@ CRGB leds[NUM_LEDS];
 
 ESP8266WebServer server ( 80 );
 
-#define NeoPIN 04
+#define NeoPIN 14
 //#define NUM_LEDS 8
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(300, NeoPIN, NEO_GRB + NEO_KHZ400);
@@ -36,7 +36,6 @@ int brightness = 189;
 int point1 = 0;
 int point2 = strip.numPixels();
 String color = "#ffffff";
-//String color = "#065de8";
 
 int timezone = 3;
 int dst = 0;
@@ -87,7 +86,7 @@ void setup ( void ) {
     delay(1000);
   }
   Serial.println("Time get");
-  wake = 1;
+
   
 
 #ifdef CLOCK_PIN
@@ -102,51 +101,36 @@ void setup ( void ) {
   
   setNeoColor(color, point1, point2);
   Serial.println ( "All white" );
-
-  //################
-  //OTA Update setup
-  ArduinoOTA.onStart([]() {
-    Serial.println("Start");  //  "Начало OTA-апдейта"
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\nEnd");  //  "Завершение OTA-апдейта"
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    //  "Ошибка при аутентификации"
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    //  "Ошибка при начале OTA-апдейта"
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    //  "Ошибка при подключении"
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    //  "Ошибка при получении данных"
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
-    //  "Ошибка при завершении OTA-апдейта"
-  });
-  ArduinoOTA.begin();
-  Serial.println("Ready");  //  "Готово"
-  Serial.print("IP address: ");  //  "IP-адрес: "
-  Serial.println(WiFi.localIP());
-  
 }
 
 void loop ( void ) {
-  // waiting for a client
+  // waiting fo a client
   server.handleClient();
-  // waiting for OTA
-  ArduinoOTA.handle();
-  //Checking alarm clock
-  handletime();
-  //Waiting for music signals
-  handlecolormusic();
-  
-}
-
-void handlecolormusic() {
+  time_t now;
+  struct tm * timeinfo;
+  time(&now);
+  timeinfo = localtime(&now);
+  if (timeinfo->tm_hour == 8 && timeinfo->tm_min >= 45 && timeinfo->tm_min <= 59 ) {
+    wake = 0;
+    int sun_speed = 1000;
+    sunrise(sun_speed);
+    int brightness = 255;
+    int point1 = 0;
+    int point2 = strip.numPixels();
+    while (digitalRead(D1) == LOW) {
+      time_t now;
+      struct tm * timeinfo;
+      time(&now);
+      timeinfo = localtime(&now);
+      Serial.println(timeinfo->tm_min);
+      color = "#1eceff";
+      setNeoColor(color, point1, point2);
+      delay(1000);
+      color = "#ffffff";
+      setNeoColor(color, point1, point2);
+      delay(1000);
+    }
+  }
   int packetSize = port.parsePacket();
   if (packetSize == sizeof(leds)) {
     port.read((char*)leds, sizeof(leds));
@@ -161,40 +145,7 @@ void handlecolormusic() {
     port.flush();
     return;
   }
-}
 
-void handletime() {
-  time_t now;
-  struct tm * timeinfo;
-  time(&now);
-  timeinfo = localtime(&now);
-  if (timeinfo->tm_hour == 9 && timeinfo->tm_min >= 44 && timeinfo->tm_min <= 45) {
-    wake = 1;
-  }
-  if (timeinfo->tm_hour == 9 && timeinfo->tm_min >= 45 && timeinfo->tm_min <= 59 && wake == 0 ) {
-    
-    int sun_speed = 1000;
-    sunrise(sun_speed);
-    delay(20000);
-    sun_speed = 100;
-    sunrise(sun_speed);
-    int brightness = 255;
-    int point1 = 0;
-    int point2 = strip.numPixels();
-    while (digitalRead(16) == LOW) {
-      time_t now;
-      struct tm * timeinfo;
-      time(&now);
-      timeinfo = localtime(&now);
-      Serial.println(timeinfo->tm_min);
-      color = "#1eceff";
-      setNeoColor(color, point1, point2);
-      delay(1000);
-      color = "#ffffff";
-      setNeoColor(color, point1, point2);
-      delay(1000);
-    }
-  }
 }
 
 void handleRoot() {
@@ -424,6 +375,8 @@ void handleNotFound() {
 
 }
 
+
+
 void setNeoColor(String value, int point1, int point2) {
 
   Serial.print("Setting ceiling...");
@@ -454,7 +407,6 @@ void setNeoColor(String value, int point1, int point2) {
 
   Serial.println("Complete.");
 }
-
 void rainbow(uint8_t wait) {
   uint16_t i, j;
   for (j = 0; j < 256; j++) {
@@ -466,7 +418,6 @@ void rainbow(uint8_t wait) {
   }
 
 }
-
 void test(int num) {
   Serial.print("testing ");
   Serial.println(num);
@@ -477,7 +428,6 @@ void test(int num) {
   strip.setPixelColor(num, strip.Color( 255, 255, 255 ));
   strip.show();
 }
-
 void sunrise(int sun_speed) {
   for (int i = 0; i < 60; i++) { // to point 1
     int col = i;
@@ -530,7 +480,6 @@ void sunrise(int sun_speed) {
   }
    
 }
-
 uint32_t Wheel(byte WheelPos) {
   WheelPos = 255 - WheelPos;
   if (WheelPos < 85) {
