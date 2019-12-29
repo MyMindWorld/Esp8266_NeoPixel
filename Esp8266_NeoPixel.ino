@@ -8,13 +8,15 @@
 #include <ArduinoOTA.h>
 #include <Arduino.h>
 #include <WiFiUdp.h>
+#include <SoftwareSerial.h>
 #define FASTLED_ESP8266_DMA // better control for ESP8266 will output or RX pin requires fork https://github.com/coryking/FastLED
 #define FASTLED_ALLOW_INTERRUPTS 0  // Reduce flickering
 #include "FastLED.h"
 const char* sensor_name = "TEST_SENSOR_HOSTNAME";
 const int udp_port = 7778;
 #define NUM_LEDS      300
-#define DATA_PIN      04
+#define DATA_PIN      D4 // D2 on wemos
+SoftwareSerial softSerial(8, 9); // RX, TX
 //#define CLOCK_PIN     2
 #define CHIPSET       WS2811
 #define COLOR_ORDER   GRB
@@ -28,8 +30,7 @@ CRGB leds[NUM_LEDS];
 
 ESP8266WebServer server ( 80 );
 
-#define NeoPIN 04
-//#define NUM_LEDS 8
+#define NeoPIN 04 // Wemos D2 port
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(300, NeoPIN, NEO_GRB + NEO_KHZ400);
 int brightness = 189;
@@ -46,6 +47,8 @@ int wake = 0;
 void setup ( void ) {
 
   Serial.begin ( 115200 );
+  softSerial.begin(9600);
+  
 
   // ##############
   // NeoPixel start
@@ -324,9 +327,6 @@ void handleRoot() {
       delay(1);
       int b = random(0, 255);
       delay(1);
-      Serial.println(r);
-      Serial.println(g);
-      Serial.println(b);
       // setting cut from 0 to 1 point to black
       for (int i = 0; i < point1; i++) {
         strip.setPixelColor(i, strip.Color( 0, 0, 0 ) );
@@ -434,6 +434,10 @@ void setNeoColor(String value, int point1, int point2) {
   int r = number >> 16;
   int g = number >> 8 & 0xFF;
   int b = number & 0xFF;
+
+  if (Serial.available()){
+     softSerial.write(number);
+  }
 
   //    start-point1;point1-point2;end
   // setting cut from 0 to 1 point to black
